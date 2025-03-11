@@ -1,30 +1,51 @@
 #include "GameServer.h"
 #include <iostream>
 #include <cstdio>
+#include <thread>
 
 GameServer::GameServer(std::shared_ptr<INetworkHandler> netHandler)
-    : networkHandler(std::move(netHandler)), game() {}
+    : networkHandler(std::move(netHandler)), game(), running(false), returnCode(0) {}
 
-void GameServer::run() {
-    networkHandler->send("Welcome to Checkers! Type moves as: x1 y1 x2 y2");
-    while (true) {
+int GameServer::run() {
+    networkHandler->sendGreeting();
+
+    running = true;
+    std::thread gameThread(&GameServer::processMoves, this);
+
+    gameThread.join();
+
+    return returnCode;
+}
+
+void GameServer::processMoves() {
+    while (running) {
         game.displayBoard();
-        std::cout << "Сейчас ходят " << (game.getCurrentPlayer() == 'B' ? "черные:" : "белые:") << std::endl;
+        networkHandler->sendCurrentMove(game.getCurrentPlayer());
+
         std::string command = networkHandler->receive();
-        if (command == "exit") break;
-        
-        int x1, y1, x2, y2;
-        if (parseMove(command, x1, y1, x2, y2)) {
-            if (game.makeMove(x1, y1, x2, y2)) {
-                networkHandler->send("Move accepted");
-            } else {
-                networkHandler->send("Invalid move");
-            }
-        } else {
-            networkHandler->send("Invalid input format");
+        if (command == "exit") {
+            running = false;
+            returnCode = 1;
         }
 
-        if (game.checkWinner()) break;
+        int x1, y1, x2, y2;
+        if (parseMove(command, x1, y1, x2, y2)) {
+            std::lock_guard<std::mutex> lock(gameMutex);
+            if (game.makeMove(x1, y1, x2, y2)) {
+                networkHandler->sendMoveAccepted();
+            } else {
+                networkHandler->sendInvalidMove();
+            }
+        } else {
+            networkHandler->sendInvalidFormat();
+        }
+
+        std::lock_guard<std::mutex> lock(gameMutex);
+        if (game.checkWinner()) {
+            running = false;
+            networkHandler->sendGameOver();
+            returnCode = 0;
+        }
     }
 }
 

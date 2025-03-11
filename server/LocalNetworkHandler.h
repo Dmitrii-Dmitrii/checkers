@@ -5,7 +5,12 @@
 
 class LocalNetworkHandler : public INetworkHandler {
 public:
-    void send(const std::string& message) override;
+    void sendGreeting() override;
+    void sendCurrentMove(char currentPlayer) override;
+    void sendMoveAccepted() override;
+    void sendInvalidMove() override;
+    void sendInvalidFormat() override;
+    void sendGameOver() override;
     std::string receive() override;
 };
 

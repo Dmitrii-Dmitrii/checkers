@@ -1,0 +1,5 @@
+/Users/dmitrii/Studing/multi-threaded/checkers/build/CMakeFiles/checkers.dir
+/Users/dmitrii/Studing/multi-threaded/checkers/build/CMakeFiles/checkers_tests.dir
+/Users/dmitrii/Studing/multi-threaded/checkers/build/CMakeFiles/test.dir
+/Users/dmitrii/Studing/multi-threaded/checkers/build/CMakeFiles/edit_cache.dir
+/Users/dmitrii/Studing/multi-threaded/checkers/build/CMakeFiles/rebuild_cache.dir

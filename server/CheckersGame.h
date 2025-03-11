@@ -11,8 +11,8 @@ public:
     bool makeMove(int x1, int y1, int x2, int y2);
     char getCurrentPlayer() const;
     bool checkWinner();
-private:
     std::vector<std::vector<char>> board;
+private:
     char currentPlayer;
     bool isValidMove(int x1, int y1, int x2, int y2);
     bool isCaptureMove(int x1, int y1, int x2, int y2);
