@@ -8,13 +8,13 @@
 #include <atomic>
 #include <mutex>
 
-class GameServer {
+class GameServer : public INetworkReceiver{
 public:
     explicit GameServer(std::shared_ptr<INetworkHandler> netHandler);
     int run();
+    void onMessageReceived(const std::string& message) override;
 
 private:
-    void processMoves();
     bool parseMove(const std::string& input, int& x1, int& y1, int& x2, int& y2);
     std::shared_ptr<INetworkHandler> networkHandler;
     CheckersGame game;

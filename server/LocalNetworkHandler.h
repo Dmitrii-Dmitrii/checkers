@@ -11,7 +11,7 @@ public:
     void sendInvalidMove() override;
     void sendInvalidFormat() override;
     void sendGameOver() override;
-    std::string receive() override;
+    void startReceiving(INetworkReceiver* receiver) override;
 };
 
 #endif // LOCALNETWORKHANDLER_H

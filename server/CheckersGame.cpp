@@ -8,16 +8,18 @@ void CheckersGame::resetBoard() {
     board.assign(8, std::vector(8, '.'));
     currentPlayer = 'W';
 
-    for (int i = 0; i < 3; ++i) {
-        for (int j = (i + 1) % 2; j < 8; j += 2) {
-            board[i][j] = 'B';
-        }
-    }
+    // for (int i = 0; i < 3; ++i) {
+    //     for (int j = (i + 1) % 2; j < 8; j += 2) {
+    //         board[i][j] = 'B';
+    //     }
+    // }
     for (int i = 5; i < 8; ++i) {
         for (int j = (i + 1) % 2; j < 8; j += 2) {
             board[i][j] = 'W';
         }
     }
+
+    board[4][1] = 'B';
 }
 
 void CheckersGame::displayBoard() {
@@ -231,13 +233,11 @@ bool CheckersGame::checkWinner() {
     }
 
     if (!hasWhite) {
-        std::cout << "Черные победили!" << std::endl;
-        std::cout << "Игра окончена!" << std::endl;
+        std::cout << "Black is the winner!" << std::endl;
         return true;
     }
     if (!hasBlack) {
-        std::cout << "Белые победили!" << std::endl;
-        std::cout << "Игра окончена!" << std::endl;
+        std::cout << "White is the winner!" << std::endl;
         return true;
     }
 

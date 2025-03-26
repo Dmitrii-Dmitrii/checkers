@@ -1,5 +1,7 @@
 #include "LocalNetworkHandler.h"
 
+#include <thread>
+
 void LocalNetworkHandler::sendGreeting() {
     std::cout << "[Server] Welcome to Checkers! Type moves as: x1 y1 x2 y2" << std::endl;
 }
@@ -24,8 +26,13 @@ void LocalNetworkHandler::sendGameOver() {
     std::cout << "[Server] Game Over: Winner!" << std::endl;
 }
 
-std::string LocalNetworkHandler::receive() {
-    std::string input;
-    std::getline(std::cin, input);
-    return input;
+void LocalNetworkHandler::startReceiving(INetworkReceiver* receiver) {
+    std::thread([receiver]() {
+        while (true) {
+            std::string input;
+            std::getline(std::cin, input);
+            receiver->onMessageReceived(input);
+            if (input == "exit") break;
+        }
+    }).detach();
 }
