@@ -1,9 +1,12 @@
 #include "GameServer.h"
-#include "LocalNetworkHandler.h"
+#include "BoostNetworkHandler.h"
 #include <memory>
 
 int main() {
-    auto network = std::make_shared<LocalNetworkHandler>();
+    // Create a Boost network handler with default port 8080
+    auto network = std::make_shared<BoostNetworkHandler>();
+
+    // Start the game server with our network handler
     GameServer server(network);
     return server.run();
 }
