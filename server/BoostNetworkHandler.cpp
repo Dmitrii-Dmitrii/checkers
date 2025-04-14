@@ -16,7 +16,6 @@ BoostNetworkHandler::BoostNetworkHandler(int port)
 BoostNetworkHandler::~BoostNetworkHandler() {
     running = false;
 
-    // Close all open sessions
     {
         std::lock_guard<std::mutex> lock(sessions_mutex);
         for (auto& session : sessions) {
@@ -33,7 +32,6 @@ BoostNetworkHandler::~BoostNetworkHandler() {
         acceptor->close(ec);
     }
 
-    // Stop IO context before joining thread
     io_context.stop();
 
     if (server_thread.joinable()) {
@@ -48,7 +46,6 @@ void BoostNetworkHandler::startReceiving(INetworkReceiver* receiver_ptr) {
     this->receiver = receiver_ptr;
     running = true;
 
-    // Initialize the acceptor
     boost::system::error_code ec;
     acceptor->open(endpoint.protocol(), ec);
     if (ec) {
@@ -104,11 +101,9 @@ void BoostNetworkHandler::onAccept(std::shared_ptr<ws::stream<boost::beast::tcp_
     if (ec) {
         std::cerr << "Accept failed: " << ec.message() << std::endl;
     } else {
-        // Create a new session for this connection
         auto session = std::make_shared<ClientSession>();
         session->ws = ws;
 
-        // Set websocket options
         session->ws->set_option(ws::stream_base::timeout::suggested(boost::beast::role_type::server));
         session->ws->set_option(ws::stream_base::decorator(
             [](ws::response_type& res) {
@@ -116,7 +111,6 @@ void BoostNetworkHandler::onAccept(std::shared_ptr<ws::stream<boost::beast::tcp_
             }
         ));
 
-        // Accept the websocket handshake
         session->ws->async_accept(
             std::bind(
                 &BoostNetworkHandler::onHandshake,
@@ -127,7 +121,6 @@ void BoostNetworkHandler::onAccept(std::shared_ptr<ws::stream<boost::beast::tcp_
         );
     }
 
-    // Accept the next connection
     if (running) {
         doAccept();
     }
@@ -147,10 +140,8 @@ void BoostNetworkHandler::onHandshake(std::shared_ptr<ClientSession> session,
 
     std::cout << "New client connected" << std::endl;
 
-    // Send greeting to the newly connected client
     sendGreeting();
 
-    // Start reading messages from this client
     doRead(session);
 }
 
@@ -193,16 +184,13 @@ void BoostNetworkHandler::onRead(std::shared_ptr<ClientSession> session,
         return;
     }
 
-    // Convert message to string
     std::string message = boost::beast::buffers_to_string(session->buffer.data());
     session->buffer.consume(session->buffer.size());
 
-    // Forward the message to the game server
     if (receiver) {
         receiver->onMessageReceived(message);
     }
 
-    // Continue reading from this client
     if (session->ws->is_open()) {
         doRead(session);
     }
@@ -237,7 +225,7 @@ void BoostNetworkHandler::broadcast(const std::string& message) {
     std::lock_guard<std::mutex> lock(sessions_mutex);
     for (auto& session : sessions) {
         boost::asio::post(
-            strand,  // Use strand instead of direct io_context
+            strand,
             [this, session, message]() {
                 this->doWrite(session, message);
             }
@@ -245,7 +233,6 @@ void BoostNetworkHandler::broadcast(const std::string& message) {
     }
 }
 
-// Helper function to create a simple JSON-like message
 std::string createJsonMessage(const std::string& type, const std::string& message,
                               const std::string& extraKey = "", const std::string& extraValue = "") {
     std::ostringstream oss;
@@ -259,7 +246,6 @@ std::string createJsonMessage(const std::string& type, const std::string& messag
     return oss.str();
 }
 
-// INetworkHandler implementation
 void BoostNetworkHandler::sendGreeting() {
     broadcast(createJsonMessage("greeting", "Welcome to Checkers! Type moves as: x1 y1 x2 y2"));
 }

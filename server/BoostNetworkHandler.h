@@ -20,7 +20,6 @@ public:
     BoostNetworkHandler(int port = 8080);
     ~BoostNetworkHandler() override;
 
-    // INetworkHandler implementation
     void sendGreeting() override;
     void sendCurrentMove(char currentPlayer) override;
     void sendMoveAccepted() override;

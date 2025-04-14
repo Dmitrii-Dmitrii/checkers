@@ -11,15 +11,12 @@
 namespace ip = boost::asio::ip;
 namespace ws = boost::beast::websocket;
 
-// Simple JSON parser for our specific format
 class SimpleJsonParser {
 public:
     static bool parse(const std::string& json, std::map<std::string, std::string>& result) {
         try {
-            // Clear any existing data
             result.clear();
 
-            // Find key-value pairs
             std::regex pattern("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"");
 
             auto words_begin = std::sregex_iterator(json.begin(), json.end(), pattern);
@@ -48,24 +45,19 @@ public:
 
     bool connect() {
         try {
-            // Initialize ASIO io_context
             io_context_ = std::make_unique<boost::asio::io_context>();
 
-            // Resolve the host
             ip::tcp::resolver resolver(*io_context_);
             auto const results = resolver.resolve(host_, std::to_string(port_));
 
-            // Create the websocket and connect
             ws_stream_ = std::make_unique<ws::stream<boost::beast::tcp_stream>>(*io_context_);
             boost::beast::get_lowest_layer(*ws_stream_).connect(results);
 
-            // Perform WebSocket handshake
             ws_stream_->handshake(host_ + ":" + std::to_string(port_), "/");
 
             std::cout << "Connected to server at " << host_ << ":" << port_ << std::endl;
             running_ = true;
 
-            // Start the read thread
             read_thread_ = std::thread([this]() { readMessages(); });
 
             return true;
@@ -139,7 +131,7 @@ private:
                     if (ec == boost::beast::websocket::error::closed) {
                         std::cout << "Connection closed by server" << std::endl;
                     } else if (ec == boost::asio::error::operation_aborted) {
-                        // Normal on shutdown
+
                     } else {
                         std::cerr << "Read error: " << ec.message() << std::endl;
                     }
@@ -156,7 +148,6 @@ private:
                         std::string type = parsed["type"];
                         std::string message = parsed["message"];
 
-                        // Process based on message type
                         if (type == "greeting") {
                             std::cout << "Server: " << message << std::endl;
                         }
