@@ -301,3 +301,15 @@ void BoostNetworkHandler::closeSession(std::shared_ptr<ClientSession> session) {
         }
     });
 }
+
+int BoostNetworkHandler::getPort() const {
+    if (acceptor && acceptor->is_open()) {
+        return acceptor->local_endpoint().port();
+    }
+    return -1;
+}
+
+bool BoostNetworkHandler::hasActiveConnections() {
+    std::lock_guard<std::mutex> lock(sessions_mutex);
+    return !sessions.empty();
+}

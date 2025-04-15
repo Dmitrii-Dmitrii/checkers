@@ -17,6 +17,8 @@ public:
     void sendMove(int x1, int y1, int x2, int y2);
     void sendRawMessage(const std::string& message);
     void disconnect();
+    const std::vector<std::string>& getReceivedMessages() const;
+    bool isConnected() const;
 
 private:
     void readMessages();
@@ -27,6 +29,7 @@ private:
     std::unique_ptr<boost::asio::io_context> io_context_;
     std::unique_ptr<boost::beast::websocket::stream<boost::beast::tcp_stream>> ws_stream_;
     std::thread read_thread_;
+    std::vector<std::string> receivedMessages_;
 };
 
 #endif // CHECKERS_CLIENT_H

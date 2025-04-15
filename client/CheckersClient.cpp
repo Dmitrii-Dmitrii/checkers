@@ -143,9 +143,18 @@ void CheckersClient::readMessages() {
                 std::cerr << "Failed to parse server message: " << e.what() << std::endl;
                 std::cout << "Raw message: " << json_str << std::endl;
             }
+            receivedMessages_.push_back(json_str);
         }
     } catch (const std::exception &e) {
         std::cerr << "Unexpected error in read thread: " << e.what() << std::endl;
         running_ = false;
     }
+}
+
+const std::vector<std::string>&  CheckersClient::getReceivedMessages() const {
+    return receivedMessages_;
+}
+
+bool  CheckersClient::isConnected() const {
+    return running_;
 }

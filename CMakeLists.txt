@@ -67,8 +67,8 @@ target_link_libraries(parser_tests
 
 add_test(NAME parser_tests COMMAND parser_tests)
 
-add_executable(client_tests
-        tests/CheckersClientTest.cpp
+add_executable(network_tests
+        tests/NetworkTest.cpp
         client/CheckersClient.h
         client/CheckersClient.cpp
         client/SimpleJsonParser.h
@@ -77,10 +77,10 @@ add_executable(client_tests
         server/BoostNetworkHandler.cpp
 )
 
-target_link_libraries(client_tests
+target_link_libraries(network_tests
         GTest::Main
         ${Boost_LIBRARIES}
         pthread
 )
 
-add_test(NAME client_tests COMMAND client_tests)
+add_test(NAME network_tests COMMAND network_tests)

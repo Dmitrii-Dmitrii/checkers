@@ -27,6 +27,8 @@ public:
     void sendInvalidFormat() override;
     void sendGameOver() override;
     void startReceiving(INetworkReceiver* receiver) override;
+    int getPort() const;
+    bool hasActiveConnections();
 
 private:
     struct ClientSession {
