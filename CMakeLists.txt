@@ -25,8 +25,11 @@ target_link_libraries(checkers
         pthread
 )
 
-add_executable(CheckersClient
+add_executable(CheckersClient client/main.cpp
+        client/CheckersClient.h
         client/CheckersClient.cpp
+        client/SimpleJsonParser.h
+        client/SimpleJsonParser.cpp
 )
 
 target_link_libraries(CheckersClient
@@ -35,20 +38,49 @@ target_link_libraries(CheckersClient
 )
 
 find_package(GTest REQUIRED)
+enable_testing()
 
-include_directories(${GTEST_INCLUDE_DIRS})
-
-add_executable(checkers_tests
+add_executable(checkers_game_tests
         tests/CheckersGameTest.cpp
         server/CheckersGame.h
         server/CheckersGame.cpp
 )
 
-target_link_libraries(checkers_tests
-        ${GTEST_LIBRARIES}
+target_link_libraries(checkers_game_tests
+        GTest::Main
+        ${Boost_LIBRARIES}
+        pthread
+)
+
+add_test(NAME GameTests COMMAND checkers_game_tests)
+
+add_executable(parser_tests
+        tests/SimpleJsonParserTest.cpp
+        client/SimpleJsonParser.h
+        client/SimpleJsonParser.cpp
+)
+
+target_link_libraries(parser_tests
         GTest::Main
         pthread
 )
 
-enable_testing()
-add_test(NAME CheckersTests COMMAND checkers_tests)
+add_test(NAME parser_tests COMMAND parser_tests)
+
+add_executable(client_tests
+        tests/CheckersClientTest.cpp
+        client/CheckersClient.h
+        client/CheckersClient.cpp
+        client/SimpleJsonParser.h
+        client/SimpleJsonParser.cpp
+        server/BoostNetworkHandler.h
+        server/BoostNetworkHandler.cpp
+)
+
+target_link_libraries(client_tests
+        GTest::Main
+        ${Boost_LIBRARIES}
+        pthread
+)
+
+add_test(NAME client_tests COMMAND client_tests)

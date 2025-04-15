@@ -16,6 +16,7 @@ BoostNetworkHandler::BoostNetworkHandler(int port)
 BoostNetworkHandler::~BoostNetworkHandler() {
     running = false;
 
+    io_context.stop();
     {
         std::lock_guard<std::mutex> lock(sessions_mutex);
         for (auto& session : sessions) {
@@ -31,8 +32,6 @@ BoostNetworkHandler::~BoostNetworkHandler() {
         boost::system::error_code ec;
         acceptor->close(ec);
     }
-
-    io_context.stop();
 
     if (server_thread.joinable()) {
         server_thread.join();
@@ -271,20 +270,34 @@ void BoostNetworkHandler::sendInvalidFormat() {
 }
 
 void BoostNetworkHandler::sendGameOver() {
-    broadcast(createJsonMessage("game_over", "Game Over: Winner!"));
-}
+    std::string message = "Game Over: winner!";
+    broadcast(createJsonMessage("game_over", message, "winner"));
 
-void BoostNetworkHandler::closeSession(std::shared_ptr<ClientSession> session) {
-    boost::asio::post(strand, [this, session]() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    std::lock_guard<std::mutex> lock(sessions_mutex);
+    for (auto& session : sessions) {
         boost::system::error_code ec;
         if (session->ws->is_open()) {
             session->ws->close(ws::close_code::normal, ec);
         }
+    }
+    sessions.clear();
+}
 
+void BoostNetworkHandler::closeSession(std::shared_ptr<ClientSession> session) {
+    {
         std::lock_guard<std::mutex> lock(sessions_mutex);
         auto it = std::find(sessions.begin(), sessions.end(), session);
         if (it != sessions.end()) {
             sessions.erase(it);
+        }
+    }
+
+    boost::asio::post(strand, [session]() {
+        boost::system::error_code ec;
+        if (session->ws->is_open()) {
+            session->ws->close(ws::close_code::normal, ec);
         }
     });
 }
