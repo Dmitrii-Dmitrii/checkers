@@ -38,6 +38,7 @@ target_link_libraries(CheckersClient
 )
 
 find_package(GTest REQUIRED)
+include_directories(${GTEST_INCLUDE_DIRS})
 enable_testing()
 
 add_executable(checkers_game_tests
@@ -79,6 +80,8 @@ add_executable(network_tests
 
 target_link_libraries(network_tests
         GTest::Main
+        GTest::gmock
+        GTest::gmock_main
         ${Boost_LIBRARIES}
         pthread
 )
