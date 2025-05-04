@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include <QVBoxLayout>
 #include <QMetaObject>
+#include <QMessageBox>
 #include <chrono>
 #include <thread>
 
@@ -9,11 +10,12 @@
 MainWindow::MainWindow(QWidget *parent)
     : QWidget(parent),
       m_moveEdit(new QLineEdit(this)),
-      m_sendBtn(new QPushButton(tr("Сделать ход"), this)),
+      m_sendBtn(new QPushButton(tr("Make move"), this)),
       m_boardWidget(new BoardWidget(this)),
       m_log(new QTextEdit(this)),
       m_client(std::make_unique<CheckersClient>("127.0.0.1", 8080)),
-      m_lastMessageIndex(0) {
+      m_lastMessageIndex(0),
+      m_gameOver(false) {
     auto *topLay = new QHBoxLayout;
     topLay->addWidget(m_moveEdit);
     topLay->addWidget(m_sendBtn);
@@ -27,7 +29,7 @@ MainWindow::MainWindow(QWidget *parent)
     if (m_client->connect()) {
         m_client->sendRawMessage("{\"type\":\"get_board\"}");
     } else {
-        m_log->append(tr("Не удалось подключиться"));
+        m_log->append(tr("Unable to connect to the server."));
         m_sendBtn->setEnabled(false);
     }
 
@@ -54,6 +56,12 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::onSendClicked() {
+    if (m_gameOver) {
+        m_log->append(tr("Game over."));
+        m_moveEdit->clear();
+        return;
+    }
+
     auto txt = m_moveEdit->text().toStdString();
     m_client->sendRawMessage(txt);
     m_moveEdit->clear();
@@ -78,9 +86,12 @@ void MainWindow::onReceived(const QString &msg) {
             qDebug() << "Board state string length:" << st.length();
             qDebug() << "Board state:" << QString::fromStdString(st);
 
-            std::vector<std::vector<Piece>> bd(8, std::vector<Piece>(8, Piece::Empty));
+            std::vector<std::vector<Piece> > bd(8, std::vector<Piece>(8, Piece::Empty));
 
             if (st.length() >= 64) {
+                int whiteCount = 0;
+                int blackCount = 0;
+
                 for (int i = 0; i < 64; ++i) {
                     int row = i / 8;
                     int col = i % 8;
@@ -90,12 +101,16 @@ void MainWindow::onReceived(const QString &msg) {
 
                     if (ch == 'B') {
                         bd[row][col] = Piece::Black;
+                        blackCount++;
                     } else if (ch == 'W') {
                         bd[row][col] = Piece::White;
+                        whiteCount++;
                     } else if (ch == 'K') {
                         bd[row][col] = Piece::BlackKing;
+                        blackCount++;
                     } else if (ch == 'Q') {
                         bd[row][col] = Piece::WhiteQueen;
+                        whiteCount++;
                     } else {
                         bd[row][col] = Piece::Empty;
                     }
@@ -103,6 +118,8 @@ void MainWindow::onReceived(const QString &msg) {
 
                 m_boardWidget->setBoard(bd);
                 qDebug() << "Board updated with new state";
+
+                checkWinner(whiteCount, blackCount);
             } else {
                 qDebug() << "Board state string is too short:" << st.length();
             }
@@ -126,5 +143,61 @@ void MainWindow::onReceived(const QString &msg) {
         } else {
             qDebug() << "Missing 'from' or 'to' in move message";
         }
+    } else if (type == "winner") {
+        if (parsed.find("color") != parsed.end()) {
+            QString winner = QString::fromStdString(parsed["color"]);
+            displayWinner(winner);
+        }
     }
+}
+
+void MainWindow::checkWinner(int whiteCount, int blackCount) {
+    if (m_gameOver) {
+        return;
+    }
+
+    if (whiteCount == 0) {
+        displayWinner("black");
+    } else if (blackCount == 0) {
+        displayWinner("white");
+    }
+}
+
+void MainWindow::displayWinner(const QString &color) {
+    m_gameOver = true;
+
+    QString winnerText;
+    if (color.toLower() == "white") {
+        winnerText = tr("White is winner!");
+    } else if (color.toLower() == "black") {
+        winnerText = tr("Black is winner!");
+    } else {
+        winnerText = tr("Game winner: ") + color;
+    }
+
+    m_log->append(winnerText);
+
+    QMessageBox msgBox(QMessageBox::Information, tr("Game over"), winnerText, QMessageBox::Ok, this);
+    msgBox.setWindowModality(Qt::WindowModal);
+    msgBox.addButton(tr("New game"), QMessageBox::AcceptRole);
+
+    int result = msgBox.exec();
+    if (result == QMessageBox::AcceptRole) {
+        resetGame();
+    } else {
+        m_sendBtn->setEnabled(false);
+        m_moveEdit->setEnabled(false);
+    }
+}
+
+void MainWindow::resetGame() {
+    m_gameOver = false;
+
+    m_sendBtn->setEnabled(true);
+    m_moveEdit->setEnabled(true);
+
+    m_log->append(tr("----------- New Game -----------"));
+    m_client->sendRawMessage("{\"type\":\"reset_game\"}");
+
+    m_client->sendRawMessage("{\"type\":\"get_board\"}");
 }

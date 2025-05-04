@@ -10,7 +10,7 @@ class MyButton : public QWidget {
 signals:
     void clicked();
 public:
-    MyButton(QString text, QWidget* parent=nullptr);
+    explicit MyButton(QString text, QWidget* parent=nullptr);
     QSize sizeHint() const override;
 protected:
     void paintEvent(QPaintEvent* e) override;
