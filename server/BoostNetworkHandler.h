@@ -30,6 +30,8 @@ public:
     void startReceiving(INetworkReceiver* receiver) override;
     int getPort() const;
     bool hasActiveConnections();
+    void sendBoardState(const std::vector<std::vector<char>>& board) override;
+    void sendMove(const std::string& from, const std::string& to);
 
 private:
     using SessionId = uint64_t;
@@ -41,18 +43,18 @@ private:
     };
 
     void runServer();
-    void onAccept(std::shared_ptr<ws::stream<boost::beast::tcp_stream>> ws, 
+    void onAccept(std::shared_ptr<ws::stream<boost::beast::tcp_stream>> ws,
                  boost::system::error_code ec);
     void doAccept();
-    void onHandshake(std::shared_ptr<ClientSession> session, 
+    void onHandshake(std::shared_ptr<ClientSession> session,
                     boost::system::error_code ec);
     void doRead(std::shared_ptr<ClientSession> session);
-    void onRead(std::shared_ptr<ClientSession> session, 
-               boost::system::error_code ec, 
+    void onRead(std::shared_ptr<ClientSession> session,
+               boost::system::error_code ec,
                std::size_t bytes_transferred);
     void doWrite(std::shared_ptr<ClientSession> session, std::string message);
-    void onWrite(std::shared_ptr<ClientSession> session, 
-                boost::system::error_code ec, 
+    void onWrite(std::shared_ptr<ClientSession> session,
+                boost::system::error_code ec,
                 std::size_t bytes_transferred);
     void broadcast(const std::string& message);
     void closeSession(std::shared_ptr<ClientSession> session);

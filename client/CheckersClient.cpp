@@ -51,11 +51,18 @@ void CheckersClient::sendMove(int x1, int y1, int x2, int y2) {
 
     try {
         std::string move = std::to_string(x1) + " " +
-                           std::to_string(y1) + " " +
-                           std::to_string(x2) + " " +
-                           std::to_string(y2);
+                          std::to_string(y1) + " " +
+                          std::to_string(x2) + " " +
+                          std::to_string(y2);
 
-        ws_stream_->write(boost::asio::buffer(move));
+        std::cout << "Sending move: " << move << std::endl;
+
+        boost::beast::error_code ec;
+        ws_stream_->write(boost::asio::buffer(move), ec);
+
+        if (ec) {
+            std::cerr << "Error sending move: " << ec.message() << std::endl;
+        }
     } catch (const std::exception &e) {
         std::cerr << "Failed to send move: " << e.what() << std::endl;
     }
@@ -95,6 +102,7 @@ void CheckersClient::readMessages() {
 
         while (running_) {
             boost::system::error_code ec;
+
             ws_stream_->read(buffer, ec);
 
             if (ec) {
@@ -105,45 +113,21 @@ void CheckersClient::readMessages() {
                 } else {
                     std::cerr << "Read error: " << ec.message() << std::endl;
                 }
-                running_ = false;
-                break;
+
+                if (!running_) break;
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                continue;
             }
 
             std::string json_str = boost::beast::buffers_to_string(buffer.data());
             buffer.consume(buffer.size());
 
-            try {
-                std::map<std::string, std::string> parsed;
-                if (SimpleJsonParser::parse(json_str, parsed)) {
-                    std::string type = parsed["type"];
-                    std::string message = parsed["message"];
+            std::cout << "Received: " << json_str << std::endl;
 
-                    if (type == "greeting") {
-                        std::cout << "Server: " << message << std::endl;
-                    } else if (type == "current_move") {
-                        std::string player = parsed["player"];
-                        std::cout << "Server: " << message << std::endl;
-                    } else if (type == "move_accepted") {
-                        std::cout << "Server: " << message << std::endl;
-                    } else if (type == "invalid_move") {
-                        std::cout << "Server: " << message << std::endl;
-                    } else if (type == "invalid_format") {
-                        std::cout << "Server: " << message << std::endl;
-                    } else if (type == "game_over") {
-                        std::cout << "Server: " << message << std::endl;
-                        std::cout << "Game over! Press Enter to exit." << std::endl;
-                        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                    } else {
-                        std::cout << "Unknown message type: " << type << ": " << message << std::endl;
-                    }
-                } else {
-                    std::cout << "Raw message: " << json_str << std::endl;
-                }
-            } catch (const std::exception &e) {
-                std::cerr << "Failed to parse server message: " << e.what() << std::endl;
-                std::cout << "Raw message: " << json_str << std::endl;
-            }
             receivedMessages_.push_back(json_str);
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     } catch (const std::exception &e) {
         std::cerr << "Unexpected error in read thread: " << e.what() << std::endl;

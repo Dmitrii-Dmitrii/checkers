@@ -1,5 +1,6 @@
 #include "BoostNetworkHandler.h"
 #include <iostream>
+#include <map>
 #include <boost/beast/core/buffers_to_string.hpp>
 #include <sstream>
 
@@ -9,17 +10,15 @@ BoostNetworkHandler::BoostNetworkHandler(int port)
       endpoint(ip::tcp::v4(), port),
       receiver(nullptr),
       strand(boost::asio::make_strand(io_context)) {
-
     acceptor = std::make_unique<ip::tcp::acceptor>(io_context);
 }
 
 BoostNetworkHandler::~BoostNetworkHandler() {
     running = false;
 
-    io_context.stop();
-    {
+    io_context.stop(); {
         std::lock_guard<std::mutex> lock(sessions_mutex);
-        for (auto& [session_id, session] : sessions) {
+        for (auto &[session_id, session]: sessions) {
             boost::system::error_code ec;
             if (session->ws->is_open()) {
                 session->ws->close(ws::close_code::normal, ec);
@@ -38,7 +37,7 @@ BoostNetworkHandler::~BoostNetworkHandler() {
     }
 }
 
-void BoostNetworkHandler::startReceiving(INetworkReceiver* receiver_ptr) {
+void BoostNetworkHandler::startReceiving(INetworkReceiver *receiver_ptr) {
     if (running)
         return;
 
@@ -80,23 +79,23 @@ void BoostNetworkHandler::startReceiving(INetworkReceiver* receiver_ptr) {
 void BoostNetworkHandler::runServer() {
     try {
         io_context.run();
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         std::cerr << "Server exception: " << e.what() << std::endl;
     }
 }
 
 void BoostNetworkHandler::doAccept() {
-    auto ws = std::make_shared<ws::stream<boost::beast::tcp_stream>>(io_context);
+    auto ws = std::make_shared<ws::stream<boost::beast::tcp_stream> >(io_context);
 
     acceptor->async_accept(
         boost::beast::get_lowest_layer(*ws).socket(),
         boost::asio::bind_executor(strand,
-            std::bind(&BoostNetworkHandler::onAccept, this, ws, std::placeholders::_1))
+                                   std::bind(&BoostNetworkHandler::onAccept, this, ws, std::placeholders::_1))
     );
 }
 
-void BoostNetworkHandler::onAccept(std::shared_ptr<ws::stream<boost::beast::tcp_stream>> ws,
-                                  boost::system::error_code ec) {
+void BoostNetworkHandler::onAccept(std::shared_ptr<ws::stream<boost::beast::tcp_stream> > ws,
+                                   boost::system::error_code ec) {
     if (ec) {
         std::cerr << "Accept failed: " << ec.message() << std::endl;
     } else {
@@ -105,7 +104,7 @@ void BoostNetworkHandler::onAccept(std::shared_ptr<ws::stream<boost::beast::tcp_
 
         session->ws->set_option(ws::stream_base::timeout::suggested(boost::beast::role_type::server));
         session->ws->set_option(ws::stream_base::decorator(
-            [](ws::response_type& res) {
+            [](ws::response_type &res) {
                 res.set(boost::beast::http::field::server, "CheckersServer");
             }
         ));
@@ -126,16 +125,14 @@ void BoostNetworkHandler::onAccept(std::shared_ptr<ws::stream<boost::beast::tcp_
 }
 
 void BoostNetworkHandler::onHandshake(std::shared_ptr<ClientSession> session,
-                                     boost::system::error_code ec) {
+                                      boost::system::error_code ec) {
     if (ec) {
         std::cerr << "Handshake failed: " << ec.message() << std::endl;
         return;
     }
 
     SessionId session_id = next_session_id++;
-    session->id = session_id;
-
-    {
+    session->id = session_id; {
         std::lock_guard<std::mutex> lock(sessions_mutex);
         sessions[session_id] = session;
     }
@@ -161,8 +158,8 @@ void BoostNetworkHandler::doRead(std::shared_ptr<ClientSession> session) {
 }
 
 void BoostNetworkHandler::onRead(std::shared_ptr<ClientSession> session,
-                                boost::system::error_code ec,
-                                std::size_t bytes_transferred) {
+                                 boost::system::error_code ec,
+                                 std::size_t bytes_transferred) {
     boost::ignore_unused(bytes_transferred);
 
     if (ec == ws::error::closed) {
@@ -209,8 +206,8 @@ void BoostNetworkHandler::doWrite(std::shared_ptr<ClientSession> session, std::s
 }
 
 void BoostNetworkHandler::onWrite(std::shared_ptr<ClientSession> session,
-                                 boost::system::error_code ec,
-                                 std::size_t bytes_transferred) {
+                                  boost::system::error_code ec,
+                                  std::size_t bytes_transferred) {
     boost::ignore_unused(bytes_transferred);
 
     if (ec) {
@@ -220,20 +217,33 @@ void BoostNetworkHandler::onWrite(std::shared_ptr<ClientSession> session,
     }
 }
 
-void BoostNetworkHandler::broadcast(const std::string& message) {
-    std::lock_guard<std::mutex> lock(sessions_mutex);
-    for (auto& [session_id, session] : sessions) {
-        boost::asio::post(
-            strand,
-            [this, session, message]() {
-                this->doWrite(session, message);
-            }
-        );
+void BoostNetworkHandler::broadcast(const std::string &message) {
+    std::vector<std::shared_ptr<ClientSession>> sessionsCopy;
+    {
+        std::lock_guard<std::mutex> lock(sessions_mutex);
+        for (auto &[session_id, session]: sessions) {
+            sessionsCopy.push_back(session);
+        }
+    }
+
+    for (auto &session: sessionsCopy) {
+        if (session && session->ws && session->ws->is_open()) {
+            boost::asio::post(
+                io_context,
+                [this, session, message]() {
+                    try {
+                        session->ws->write(boost::asio::buffer(message));
+                    } catch (const std::exception &e) {
+                        std::cerr << "Write failed: " << e.what() << std::endl;
+                    }
+                }
+            );
+        }
     }
 }
 
-std::string createJsonMessage(const std::string& type, const std::string& message,
-                              const std::string& extraKey = "", const std::string& extraValue = "") {
+std::string createJsonMessage(const std::string &type, const std::string &message,
+                              const std::string &extraKey = "", const std::string &extraValue = "") {
     std::ostringstream oss;
     oss << "{\"type\":\"" << type << "\",\"message\":\"" << message << "\"";
 
@@ -251,8 +261,8 @@ void BoostNetworkHandler::sendGreeting() {
 
 void BoostNetworkHandler::sendCurrentMove(char currentPlayer) {
     std::string message = std::string("Now there are ") +
-                         (currentPlayer == 'B' ? "black " : "white ") +
-                         "move:";
+                          (currentPlayer == 'B' ? "black " : "white ") +
+                          "move:";
 
     broadcast(createJsonMessage("current_move", message, "player", std::string(1, currentPlayer)));
 }
@@ -276,7 +286,7 @@ void BoostNetworkHandler::sendGameOver() {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     std::lock_guard<std::mutex> lock(sessions_mutex);
-    for (auto& [session_id, session] : sessions) {
+    for (auto &[session_id, session]: sessions) {
         boost::system::error_code ec;
         if (session->ws->is_open()) {
             session->ws->close(ws::close_code::normal, ec);
@@ -285,8 +295,7 @@ void BoostNetworkHandler::sendGameOver() {
     sessions.clear();
 }
 
-void BoostNetworkHandler::closeSession(std::shared_ptr<ClientSession> session) {
-    {
+void BoostNetworkHandler::closeSession(std::shared_ptr<ClientSession> session) { {
         std::lock_guard<std::mutex> lock(sessions_mutex);
         sessions.erase(session->id);
     }
@@ -309,4 +318,61 @@ int BoostNetworkHandler::getPort() const {
 bool BoostNetworkHandler::hasActiveConnections() {
     std::lock_guard<std::mutex> lock(sessions_mutex);
     return !sessions.empty();
+}
+
+void BoostNetworkHandler::sendBoardState(const std::vector<std::vector<char>>& board) {
+    std::string state;
+    for (size_t i = 0; i < board.size(); ++i) {
+        for (size_t j = 0; j < board[i].size(); ++j) {
+            state += board[i][j];
+        }
+    }
+
+    while (state.length() < 64) {
+        state += ".";
+    }
+
+    std::string jsonMessage = "{\"type\":\"board\",\"state\":\"" + state + "\"}";
+
+    std::lock_guard<std::mutex> lock(sessions_mutex);
+    for (auto &[session_id, session]: sessions) {
+        auto sharedSession = session;
+        auto sharedMessage = jsonMessage;
+
+        boost::asio::post(
+            io_context,
+            [this, sharedSession, sharedMessage]() {
+                if (sharedSession->ws && sharedSession->ws->is_open()) {
+                    try {
+                        sharedSession->ws->write(boost::asio::buffer(sharedMessage));
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error writing to socket: " << e.what() << std::endl;
+                    }
+                }
+            }
+        );
+    }
+}
+
+void BoostNetworkHandler::sendMove(const std::string& from, const std::string& to) {
+    std::string jsonMessage = "{\"type\":\"move\",\"from\":\"" + from + "\",\"to\":\"" + to + "\"}";
+
+    std::lock_guard<std::mutex> lock(sessions_mutex);
+    for (auto &[session_id, session]: sessions) {
+        auto sharedSession = session;
+        auto sharedMessage = jsonMessage;
+
+        boost::asio::post(
+            io_context,
+            [this, sharedSession, sharedMessage]() {
+                if (sharedSession->ws && sharedSession->ws->is_open()) {
+                    try {
+                        sharedSession->ws->write(boost::asio::buffer(sharedMessage));
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error writing to socket: " << e.what() << std::endl;
+                    }
+                }
+            }
+        );
+    }
 }

@@ -12,6 +12,7 @@ public:
     char getCurrentPlayer() const;
     bool checkWinner();
     std::vector<std::vector<char>> board;
+    const std::vector<std::vector<char>>& getBoard() const { return board; }
 private:
     char currentPlayer;
     bool isValidMove(int x1, int y1, int x2, int y2);

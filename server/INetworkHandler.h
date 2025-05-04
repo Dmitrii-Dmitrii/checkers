@@ -17,6 +17,7 @@ public:
     virtual void sendInvalidFormat() = 0;
     virtual void sendGameOver() = 0;
     virtual void startReceiving(INetworkReceiver* receiver) = 0;
+    virtual void sendBoardState(const std::vector<std::vector<char>>& board) = 0;
     virtual ~INetworkHandler() = default;
 };
 

@@ -8,6 +8,7 @@ GameServer::GameServer(std::shared_ptr<INetworkHandler> netHandler)
 int GameServer::run() {
     networkHandler->sendGreeting();
     game.displayBoard();
+    networkHandler->sendBoardState(game.getBoard());
     networkHandler->sendCurrentMove(game.getCurrentPlayer());
     running = true;
 
@@ -41,6 +42,7 @@ void GameServer::onMessageReceived(const std::string& command) {
     }
 
     game.displayBoard();
+    networkHandler->sendBoardState(game.getBoard());
     networkHandler->sendCurrentMove(game.getCurrentPlayer());
 
     if (game.checkWinner()) {
