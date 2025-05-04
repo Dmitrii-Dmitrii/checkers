@@ -19,7 +19,7 @@ BoostNetworkHandler::~BoostNetworkHandler() {
     io_context.stop();
     {
         std::lock_guard<std::mutex> lock(sessions_mutex);
-        for (auto& session : sessions) {
+        for (auto& [session_id, session] : sessions) {
             boost::system::error_code ec;
             if (session->ws->is_open()) {
                 session->ws->close(ws::close_code::normal, ec);
@@ -132,12 +132,15 @@ void BoostNetworkHandler::onHandshake(std::shared_ptr<ClientSession> session,
         return;
     }
 
+    SessionId session_id = next_session_id++;
+    session->id = session_id;
+
     {
         std::lock_guard<std::mutex> lock(sessions_mutex);
-        sessions.push_back(session);
+        sessions[session_id] = session;
     }
 
-    std::cout << "New client connected" << std::endl;
+    std::cout << "New client connected with ID: " << session_id << std::endl;
 
     sendGreeting();
 
@@ -163,18 +166,15 @@ void BoostNetworkHandler::onRead(std::shared_ptr<ClientSession> session,
     boost::ignore_unused(bytes_transferred);
 
     if (ec == ws::error::closed) {
-        std::cout << "Connection closed by client" << std::endl;
+        std::cout << "Connection closed by client with ID: " << session->id << std::endl;
         std::lock_guard<std::mutex> lock(sessions_mutex);
-        auto it = std::find(sessions.begin(), sessions.end(), session);
-        if (it != sessions.end()) {
-            sessions.erase(it);
-        }
+        sessions.erase(session->id);
         return;
     }
 
     if (ec == ws::error::closed || ec) {
         if (ec == ws::error::closed) {
-            std::cout << "Connection closed by client" << std::endl;
+            std::cout << "Connection closed by client with ID: " << session->id << std::endl;
         } else {
             std::cerr << "Read failed: " << ec.message() << std::endl;
         }
@@ -222,7 +222,7 @@ void BoostNetworkHandler::onWrite(std::shared_ptr<ClientSession> session,
 
 void BoostNetworkHandler::broadcast(const std::string& message) {
     std::lock_guard<std::mutex> lock(sessions_mutex);
-    for (auto& session : sessions) {
+    for (auto& [session_id, session] : sessions) {
         boost::asio::post(
             strand,
             [this, session, message]() {
@@ -276,7 +276,7 @@ void BoostNetworkHandler::sendGameOver() {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     std::lock_guard<std::mutex> lock(sessions_mutex);
-    for (auto& session : sessions) {
+    for (auto& [session_id, session] : sessions) {
         boost::system::error_code ec;
         if (session->ws->is_open()) {
             session->ws->close(ws::close_code::normal, ec);
@@ -288,10 +288,7 @@ void BoostNetworkHandler::sendGameOver() {
 void BoostNetworkHandler::closeSession(std::shared_ptr<ClientSession> session) {
     {
         std::lock_guard<std::mutex> lock(sessions_mutex);
-        auto it = std::find(sessions.begin(), sessions.end(), session);
-        if (it != sessions.end()) {
-            sessions.erase(it);
-        }
+        sessions.erase(session->id);
     }
 
     boost::asio::post(strand, [session]() {

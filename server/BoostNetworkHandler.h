@@ -11,6 +11,7 @@
 #include <memory>
 #include <functional>
 #include <atomic>
+#include <unordered_map>
 
 namespace ip = boost::asio::ip;
 namespace ws = boost::beast::websocket;
@@ -31,9 +32,12 @@ public:
     bool hasActiveConnections();
 
 private:
+    using SessionId = uint64_t;
+
     struct ClientSession {
         std::shared_ptr<ws::stream<boost::beast::tcp_stream>> ws;
         boost::beast::flat_buffer buffer;
+        SessionId id;
     };
 
     void runServer();
@@ -58,7 +62,10 @@ private:
     ip::tcp::endpoint endpoint;
     std::unique_ptr<ip::tcp::acceptor> acceptor;
     std::thread server_thread;
-    std::vector<std::shared_ptr<ClientSession>> sessions;
+
+    std::unordered_map<SessionId, std::shared_ptr<ClientSession>> sessions;
+    std::atomic<SessionId> next_session_id{1};
+
     std::mutex sessions_mutex;
     INetworkReceiver* receiver;
     boost::asio::strand<boost::asio::io_context::executor_type> strand;
