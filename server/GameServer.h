@@ -13,6 +13,11 @@ public:
     explicit GameServer(std::shared_ptr<INetworkHandler> netHandler);
     int run();
     void onMessageReceived(const std::string& message) override;
+    const CheckersGame& getGame() const {
+        return game;
+    }
+    void sendBoardToClient(uint64_t clientId) override;
+    void sendCurrentMoveToClient(uint64_t clientId) override;
 
 private:
     bool parseMove(const std::string& input, int& x1, int& y1, int& x2, int& y2);

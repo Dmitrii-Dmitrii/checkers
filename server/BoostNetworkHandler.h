@@ -21,6 +21,15 @@ public:
     BoostNetworkHandler(int port = 8080);
     ~BoostNetworkHandler() override;
 
+    using SessionId = uint64_t;
+
+    struct ClientSession {
+        std::shared_ptr<ws::stream<boost::beast::tcp_stream>> ws;
+        boost::beast::flat_buffer buffer;
+        SessionId id;
+        std::string playerColor;
+    };
+
     void sendGreeting() override;
     void sendCurrentMove(char currentPlayer) override;
     void sendMoveAccepted() override;
@@ -32,16 +41,10 @@ public:
     bool hasActiveConnections();
     void sendBoardState(const std::vector<std::vector<char>>& board) override;
     void sendMove(const std::string& from, const std::string& to);
+    void sendBoardToClient(uint64_t clientId);
+    void sendCurrentMoveToClient(uint64_t clientId);
 
 private:
-    using SessionId = uint64_t;
-
-    struct ClientSession {
-        std::shared_ptr<ws::stream<boost::beast::tcp_stream>> ws;
-        boost::beast::flat_buffer buffer;
-        SessionId id;
-    };
-
     void runServer();
     void onAccept(std::shared_ptr<ws::stream<boost::beast::tcp_stream>> ws,
                  boost::system::error_code ec);
@@ -58,7 +61,8 @@ private:
                 std::size_t bytes_transferred);
     void broadcast(const std::string& message);
     void closeSession(std::shared_ptr<ClientSession> session);
-
+    void sendToPlayer(const std::string& color, const std::string& message) override;
+    void sendToClient(SessionId clientId, const std::string& message) override;
     std::atomic<bool> running;
     boost::asio::io_context io_context;
     ip::tcp::endpoint endpoint;

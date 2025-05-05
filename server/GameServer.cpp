@@ -55,3 +55,36 @@ void GameServer::onMessageReceived(const std::string& command) {
 bool GameServer::parseMove(const std::string& input, int& x1, int& y1, int& x2, int& y2) {
     return sscanf(input.c_str(), "%d %d %d %d", &x1, &y1, &x2, &y2) == 4;
 }
+
+void GameServer::sendBoardToClient(uint64_t clientId) {
+    std::lock_guard<std::mutex> lock(gameMutex);
+    const std::vector<std::vector<char>>& board = game.getBoard();
+
+    std::string state;
+    for (size_t i = 0; i < board.size(); ++i) {
+        for (size_t j = 0; j < board[i].size(); ++j) {
+            state += board[i][j];
+        }
+    }
+
+    while (state.length() < 64) {
+        state += ".";
+    }
+
+    std::string jsonMessage = "{\"type\":\"board\",\"state\":\"" + state + "\"}";
+    networkHandler->sendToClient(clientId, jsonMessage);
+}
+
+void GameServer::sendCurrentMoveToClient(uint64_t clientId) {
+    std::lock_guard<std::mutex> lock(gameMutex);
+    char currentPlayer = game.getCurrentPlayer();
+
+    std::string message = std::string("Now there are ") +
+                          (currentPlayer == 'B' ? "black " : "white ") +
+                          "move:";
+
+    std::string jsonMessage = "{\"type\":\"current_move\",\"message\":\"" + message +
+                              "\",\"player\":\"" + std::string(1, currentPlayer) + "\"}";
+
+    networkHandler->sendToClient(clientId, jsonMessage);
+}

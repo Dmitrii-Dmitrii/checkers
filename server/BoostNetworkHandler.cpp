@@ -1,8 +1,11 @@
 #include "BoostNetworkHandler.h"
+#include "../client/SimpleJsonParser.h"
 #include <iostream>
 #include <map>
 #include <boost/beast/core/buffers_to_string.hpp>
 #include <sstream>
+
+#include "GameServer.h"
 
 
 BoostNetworkHandler::BoostNetworkHandler(int port)
@@ -158,8 +161,8 @@ void BoostNetworkHandler::doRead(std::shared_ptr<ClientSession> session) {
 }
 
 void BoostNetworkHandler::onRead(std::shared_ptr<ClientSession> session,
-                                 boost::system::error_code ec,
-                                 std::size_t bytes_transferred) {
+                             boost::system::error_code ec,
+                             std::size_t bytes_transferred) {
     boost::ignore_unused(bytes_transferred);
 
     if (ec == ws::error::closed) {
@@ -182,6 +185,24 @@ void BoostNetworkHandler::onRead(std::shared_ptr<ClientSession> session,
 
     std::string message = boost::beast::buffers_to_string(session->buffer.data());
     session->buffer.consume(session->buffer.size());
+
+    std::map<std::string, std::string> parsed;
+    if (SimpleJsonParser::parse(message, parsed)) {
+        auto type = parsed["type"];
+        if (type == "player_connect" && parsed.find("color") != parsed.end()) {
+            std::string color = parsed["color"];
+            session->playerColor = color;
+            std::cout << "Client " << session->id << " connected as " << color << " player" << std::endl;
+
+            if (receiver) {
+                receiver->sendBoardToClient(session->id);
+            }
+
+            if (receiver) {
+                receiver->sendCurrentMoveToClient(session->id);
+            }
+        }
+    }
 
     if (receiver) {
         receiver->onMessageReceived(message);
@@ -375,4 +396,110 @@ void BoostNetworkHandler::sendMove(const std::string& from, const std::string& t
             }
         );
     }
+}
+
+void BoostNetworkHandler::sendToPlayer(const std::string& color, const std::string& message) {
+    std::vector<std::shared_ptr<ClientSession>> targetSessions;
+    {
+        std::lock_guard<std::mutex> lock(sessions_mutex);
+        for (auto& [session_id, session] : sessions) {
+            if (session->playerColor == color) {
+                targetSessions.push_back(session);
+            }
+        }
+    }
+
+    for (auto& session : targetSessions) {
+        if (session && session->ws && session->ws->is_open()) {
+            boost::asio::post(
+                io_context,
+                [this, session, message]() {
+                    try {
+                        session->ws->write(boost::asio::buffer(message));
+                    } catch (const std::exception& e) {
+                        std::cerr << "Write failed: " << e.what() << std::endl;
+                    }
+                }
+            );
+        }
+    }
+}
+
+void BoostNetworkHandler::sendToClient(SessionId clientId, const std::string& message) {
+    std::shared_ptr<ClientSession> session;
+    {
+        std::lock_guard<std::mutex> lock(sessions_mutex);
+        auto it = sessions.find(clientId);
+        if (it != sessions.end()) {
+            session = it->second;
+        }
+    }
+
+    if (session && session->ws && session->ws->is_open()) {
+        boost::asio::post(
+            io_context,
+            [this, session, message]() {
+                try {
+                    session->ws->write(boost::asio::buffer(message));
+                } catch (const std::exception& e) {
+                    std::cerr << "Write failed: " << e.what() << std::endl;
+                }
+            }
+        );
+    }
+}
+
+void BoostNetworkHandler::sendBoardToClient(uint64_t clientId) {
+    if (!receiver) {
+        std::cerr << "Cannot send board state: receiver not set" << std::endl;
+        return;
+    }
+
+    std::shared_ptr<ClientSession> session;
+    {
+        std::lock_guard<std::mutex> lock(sessions_mutex);
+        auto it = sessions.find(clientId);
+        if (it != sessions.end()) {
+            session = it->second;
+        }
+    }
+
+    if (!session) {
+        std::cerr << "Cannot send board state: client " << clientId << " not found" << std::endl;
+        return;
+    }
+
+    auto board = static_cast<GameServer*>(receiver)->getGame().getBoard();
+
+    std::string state;
+    for (size_t i = 0; i < board.size(); ++i) {
+        for (size_t j = 0; j < board[i].size(); ++j) {
+            state += board[i][j];
+        }
+    }
+
+    while (state.length() < 64) {
+        state += ".";
+    }
+
+    std::string jsonMessage = "{\"type\":\"board\",\"state\":\"" + state + "\"}";
+
+    sendToClient(clientId, jsonMessage);
+}
+
+void BoostNetworkHandler::sendCurrentMoveToClient(uint64_t clientId) {
+    if (!receiver) {
+        std::cerr << "Cannot send current move: receiver not set" << std::endl;
+        return;
+    }
+
+    char currentPlayer = static_cast<GameServer*>(receiver)->getGame().getCurrentPlayer();
+
+    std::string message = std::string("Now there are ") +
+                          (currentPlayer == 'B' ? "black " : "white ") +
+                          "move:";
+
+    std::string jsonMessage = createJsonMessage("current_move", message, "player", std::string(1, currentPlayer));
+
+    sendToClient(clientId, jsonMessage);
 }

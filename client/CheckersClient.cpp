@@ -125,6 +125,11 @@ void CheckersClient::readMessages() {
 
             std::cout << "Received: " << json_str << std::endl;
 
+            std::map<std::string, std::string> parsed;
+            if (SimpleJsonParser::parse(json_str, parsed)) {
+                auto type = parsed["type"];
+            }
+
             receivedMessages_.push_back(json_str);
 
             std::this_thread::sleep_for(std::chrono::milliseconds(10));

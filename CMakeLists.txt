@@ -26,6 +26,8 @@ add_executable(checkers
         server/GameServer.cpp
         server/BoostNetworkHandler.cpp
         server/BoostNetworkHandler.h
+        client/SimpleJsonParser.h
+        client/SimpleJsonParser.cpp
 )
 target_include_directories(checkers PRIVATE
         ${PROJECT_SOURCE_DIR}/server
@@ -73,6 +75,8 @@ set(GUI_SOURCES
         qt/resource.qrc
         qt/BoardWidget.cpp
         qt/BoardWidget.h
+        qt/PlayerWindow.cpp
+        qt/PlayerWindow.h
 )
 add_executable(CheckersQt ${GUI_SOURCES})
 
