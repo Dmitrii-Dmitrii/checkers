@@ -13,7 +13,7 @@ message(STATUS "Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
 message(STATUS "Boost_LIBRARIES: ${Boost_LIBRARIES}")
 include_directories(${Boost_INCLUDE_DIRS})
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Network Core LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network Core LinguistTools Test)
 
 add_executable(checkers
         server/main.cpp
@@ -137,3 +137,25 @@ target_link_libraries(network_tests
 )
 
 add_test(NAME network_tests COMMAND network_tests)
+
+add_executable(qt_client_tests
+        tests/QtClientTest.cpp
+)
+
+target_include_directories(qt_client_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/qt
+)
+
+set_target_properties(qt_client_tests PROPERTIES
+        AUTOMOC ON
+)
+
+target_link_libraries(qt_client_tests
+        PRIVATE
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Test
+        CheckersCore
+)
+
+add_test(NAME qt_client_tests COMMAND qt_client_tests)
