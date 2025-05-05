@@ -2,7 +2,6 @@
 #include <QTranslator>
 #include <QCommandLineParser>
 #include <QCommandLineOption>
-#include "AppEventFilter.h"
 #include "PlayerWindow.h"
 
 int main(int argc, char *argv[]) {
@@ -35,9 +34,6 @@ int main(int argc, char *argv[]) {
     QString mode = parser.value(modeOption);
     QString host = parser.value(hostOption);
     int port = parser.value(portOption).toInt();
-
-    AppEventFilter filter(&app);
-    app.installEventFilter(&filter);
 
     PlayerWindow* whiteWindow = nullptr;
     PlayerWindow* blackWindow = nullptr;

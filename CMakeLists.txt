@@ -66,8 +66,6 @@ target_link_libraries(CheckersClient PRIVATE
 
 set(GUI_SOURCES
         qt/main.cpp
-        qt/AppEventFilter.h
-        qt/AppEventFilter.cpp
         qt/MainWindow.h
         qt/MainWindow.cpp
         qt/MyButton.h
