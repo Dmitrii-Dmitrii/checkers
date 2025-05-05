@@ -1,10 +1,8 @@
 #include "PlayerWindow.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QMetaObject>
 #include <QMessageBox>
-#include <chrono>
-#include <thread>
+#include <QDebug>
 
 #include "SimpleJsonParser.h"
 
@@ -15,8 +13,8 @@ PlayerWindow::PlayerWindow(PlayerType type, const QString& serverHost, int serve
       m_boardWidget(new BoardWidget(this)),
       m_log(new QTextEdit(this)),
       m_statusLabel(new QLabel(this)),
-      m_client(std::make_unique<CheckersClient>(serverHost.toStdString(), serverPort)),
-      m_lastMessageIndex(0),
+      m_client(std::make_shared<CheckersClient>(serverHost.toStdString(), serverPort)),
+      m_messageThread(nullptr),
       m_gameOver(false),
       m_playerType(type),
       m_myTurn(false) {
@@ -29,7 +27,7 @@ PlayerWindow::PlayerWindow(PlayerType type, const QString& serverHost, int serve
     m_statusLabel->setFont(statusFont);
     m_statusLabel->setAlignment(Qt::AlignCenter);
     updateStatus(false);
-    
+
     auto *topLay = new QHBoxLayout;
     topLay->addWidget(m_moveEdit);
     topLay->addWidget(m_sendBtn);
@@ -45,6 +43,10 @@ PlayerWindow::PlayerWindow(PlayerType type, const QString& serverHost, int serve
     m_moveEdit->setEnabled(false);
 
     if (m_client->connect()) {
+        m_messageThread = new MessageThread(m_client, this);
+        connect(m_messageThread, &MessageThread::messageReceived, this, &PlayerWindow::onMessageReceived);
+        m_messageThread->start();
+
         m_client->sendRawMessage("{\"type\":\"get_board\"}");
         std::string color = m_playerType == PlayerType::White ? "white" : "black";
         m_client->sendRawMessage("{\"type\":\"player_connect\",\"color\":\"" + color + "\"}");
@@ -54,24 +56,13 @@ PlayerWindow::PlayerWindow(PlayerType type, const QString& serverHost, int serve
     }
 
     connect(m_sendBtn, &QPushButton::clicked, this, &PlayerWindow::onSendClicked);
-
-    std::thread([this]() {
-        while (m_client->isConnected()) {
-            const auto &msgs = m_client->getReceivedMessages();
-            for (size_t i = m_lastMessageIndex; i < msgs.size(); ++i) {
-                QString qs = QString::fromStdString(msgs[i]);
-                QMetaObject::invokeMethod(this, [this, qs]() {
-                    onReceived(qs);
-                });
-            }
-            m_lastMessageIndex = msgs.size();
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-    }).detach();
 }
 
 PlayerWindow::~PlayerWindow() {
+    if (m_messageThread) {
+        m_messageThread->stop();
+        m_messageThread->wait();
+    }
     m_client->disconnect();
 }
 
@@ -119,7 +110,7 @@ void PlayerWindow::updateStatus(bool myTurn) {
     }
 }
 
-void PlayerWindow::onReceived(const QString &msg) {
+void PlayerWindow::onMessageReceived(const QString &msg) {
     m_log->append(msg);
     qDebug() << "Received message from server:" << msg;
 

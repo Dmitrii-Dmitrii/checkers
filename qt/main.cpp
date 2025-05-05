@@ -53,5 +53,10 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    return app.exec();
+    int result = app.exec();
+
+    delete whiteWindow;
+    delete blackWindow;
+
+    return result;
 }

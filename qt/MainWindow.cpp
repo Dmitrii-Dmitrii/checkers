@@ -1,9 +1,8 @@
 #include "MainWindow.h"
 #include <QVBoxLayout>
-#include <QMetaObject>
+#include <QHBoxLayout>
 #include <QMessageBox>
-#include <chrono>
-#include <thread>
+#include <QDebug>
 
 #include "SimpleJsonParser.h"
 
@@ -13,9 +12,10 @@ MainWindow::MainWindow(QWidget *parent)
       m_sendBtn(new QPushButton(tr("Make move"), this)),
       m_boardWidget(new BoardWidget(this)),
       m_log(new QTextEdit(this)),
-      m_client(std::make_unique<CheckersClient>("127.0.0.1", 8080)),
-      m_lastMessageIndex(0),
+      m_client(std::make_shared<CheckersClient>("127.0.0.1", 8080)),
+      m_messageThread(nullptr),
       m_gameOver(false) {
+
     auto *topLay = new QHBoxLayout;
     topLay->addWidget(m_moveEdit);
     topLay->addWidget(m_sendBtn);
@@ -27,6 +27,10 @@ MainWindow::MainWindow(QWidget *parent)
     setLayout(mainLay);
 
     if (m_client->connect()) {
+        m_messageThread = new MessageThread(m_client, this);
+        connect(m_messageThread, &MessageThread::messageReceived, this, &MainWindow::onMessageReceived);
+        m_messageThread->start();
+
         m_client->sendRawMessage("{\"type\":\"get_board\"}");
     } else {
         m_log->append(tr("Unable to connect to the server."));
@@ -34,24 +38,13 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     connect(m_sendBtn, &QPushButton::clicked, this, &MainWindow::onSendClicked);
-
-    std::thread([this]() {
-        while (m_client->isConnected()) {
-            const auto &msgs = m_client->getReceivedMessages();
-            for (size_t i = m_lastMessageIndex; i < msgs.size(); ++i) {
-                QString qs = QString::fromStdString(msgs[i]);
-                QMetaObject::invokeMethod(this, [this, qs]() {
-                    onReceived(qs);
-                });
-            }
-            m_lastMessageIndex = msgs.size();
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-    }).detach();
 }
 
 MainWindow::~MainWindow() {
+    if (m_messageThread) {
+        m_messageThread->stop();
+        m_messageThread->wait();
+    }
     m_client->disconnect();
 }
 
@@ -67,7 +60,7 @@ void MainWindow::onSendClicked() {
     m_moveEdit->clear();
 }
 
-void MainWindow::onReceived(const QString &msg) {
+void MainWindow::onMessageReceived(const QString &msg) {
     m_log->append(msg);
     qDebug() << "Received message from server:" << msg;
 
@@ -198,6 +191,5 @@ void MainWindow::resetGame() {
 
     m_log->append(tr("----------- New Game -----------"));
     m_client->sendRawMessage("{\"type\":\"reset_game\"}");
-
     m_client->sendRawMessage("{\"type\":\"get_board\"}");
 }

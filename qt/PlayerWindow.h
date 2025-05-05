@@ -10,6 +10,7 @@
 
 #include "BoardWidget.h"
 #include "CheckersClient.h"
+#include "MessageThread.h"
 
 enum class PlayerType {
     White,
@@ -25,7 +26,7 @@ public:
 
     private slots:
         void onSendClicked();
-    void onReceived(const QString &msg);
+    void onMessageReceived(const QString &msg);
     void resetGame();
     void updateStatus(bool myTurn);
 
@@ -39,8 +40,8 @@ private:
     BoardWidget *m_boardWidget;
     QTextEdit *m_log;
     QLabel *m_statusLabel;
-    std::unique_ptr<CheckersClient> m_client;
-    size_t m_lastMessageIndex;
+    std::shared_ptr<CheckersClient> m_client;
+    MessageThread *m_messageThread;
     bool m_gameOver;
     PlayerType m_playerType;
     bool m_myTurn;

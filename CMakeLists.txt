@@ -75,6 +75,8 @@ set(GUI_SOURCES
         qt/BoardWidget.h
         qt/PlayerWindow.cpp
         qt/PlayerWindow.h
+        qt/MessageThread.cpp
+        qt/MessageThread.h
 )
 add_executable(CheckersQt ${GUI_SOURCES})
 
@@ -146,6 +148,9 @@ add_executable(qt_client_tests
 
 target_include_directories(qt_client_tests PRIVATE
         ${PROJECT_SOURCE_DIR}/qt
+        ${Qt6Core_INCLUDE_DIRS}
+        ${Qt6Widgets_INCLUDE_DIRS}
+        ${Qt6Test_INCLUDE_DIRS}
 )
 
 set_target_properties(qt_client_tests PROPERTIES
